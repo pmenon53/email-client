@@ -1,0 +1,61 @@
+name: Gmail Agent
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # Every hour (PRD §7)
+  workflow_dispatch: {}    # Manual trigger for testing
+
+# Avoid overlapping runs if one takes longer than the hourly cadence.
+concurrency:
+  group: gmail-agent
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Compute the knowledge-cache key BEFORE restoring the cache. The key is a
+      # hash of every (fileId, modifiedTime) in the Drive folder, identical to
+      # the key knowledge.py uses internally, so the Actions cache and the
+      # in-process corpus cache stay in sync (resolves the PRD §7 ordering gap).
+      - name: Compute knowledge cache key
+        id: corpus
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+        run: echo "hash=$(python scripts/compute_corpus_hash.py)" >> "$GITHUB_OUTPUT"
+
+      # Restore (and, in the post-job step, save) the extracted-text corpus.
+      # On a cache hit the agent skips re-downloading and re-extracting docs.
+      - name: Knowledge cache
+        uses: actions/cache@v4
+        with:
+          path: .knowledge_cache
+          key: knowledge-${{ steps.corpus.outputs.hash }}
+          restore-keys: |
+            knowledge-
+
+      - name: Run agent
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+        run: python -m agent.main

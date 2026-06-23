@@ -1,0 +1,20 @@
+# Knowledge cache (restored from GitHub Actions cache at runtime).
+# Keep the directory in the repo, ignore its contents.
+.knowledge_cache/*
+!.knowledge_cache/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Secrets / local OAuth artifacts — never commit these
+.env
+client_secret*.json
+credentials.json
+token.json
+*refresh_token*
+credentials_input.txt
+
