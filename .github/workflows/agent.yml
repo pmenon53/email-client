@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   run-agent:
+    if: ${{ secrets.GOOGLE_CLIENT_ID != '' && secrets.GOOGLE_CLIENT_SECRET != '' && secrets.GOOGLE_REFRESH_TOKEN != '' && secrets.GROQ_API_KEY != '' && secrets.DRIVE_FOLDER_ID != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
